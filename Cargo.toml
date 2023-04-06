@@ -10,7 +10,8 @@ version = "0.1.0"
 [dependencies]
 clap = "4.2.1"
 combine = "4.6.6"
-llvm-sys = "160"
+llvm-sys = "150"
+libc = "0.2.141"
 
 [package.metadata.nix]
 app = true

@@ -1,5 +1,5 @@
 {
-  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
   inputs.nci.url = "github:yusdacra/nix-cargo-integration";
   inputs.nci.inputs.nixpkgs.follows = "nixpkgs";
   inputs.parts.url = "github:hercules-ci/flake-parts";
@@ -36,6 +36,13 @@
             # alternatively you can access the outputs and export them yourself (see below)
             export = true;
             # look at documentation for more options
+            overrides.add-inputs.overrideAttrs = old: {
+              buildInputs = (old.buildInputs or [ ]) ++ [
+                pkgs.llvm_15
+                pkgs.libxml2
+              ];
+            };
+
           };
           # export the crate devshell as the default devshell
           devShells.default = crateOutputs.devShell;

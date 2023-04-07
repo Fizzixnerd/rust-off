@@ -395,7 +395,7 @@ fn anonymous_decl(line_number: &Option<usize>) -> FunctionDecl {
         None => "__anonymous_func".to_string(),
         Some(ln) => format!("__anonymous_func_{}", ln).to_string(),
     }; */
-    let name = "main".to_string();
+    let name = "main2".to_string();
     FunctionDecl {
         name,
         type_: 0,

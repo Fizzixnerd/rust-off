@@ -8,10 +8,13 @@ mod statement;
 mod token;
 use compile::{compile, deinit, init, print_ir, CompilationContext};
 use lex::lex;
-use llvm_sys::orc2::{
-    lljit::{LLVMOrcLLJITAddLLVMIRModule, LLVMOrcLLJITGetMainJITDylib, LLVMOrcLLJITLookup},
-    LLVMOrcCreateNewThreadSafeContext, LLVMOrcCreateNewThreadSafeModule, LLVMOrcExecutorAddress,
-    LLVMOrcThreadSafeContextGetContext,
+use llvm_sys::{
+    error::LLVMGetErrorMessage,
+    orc2::{
+        lljit::{LLVMOrcLLJITAddLLVMIRModule, LLVMOrcLLJITGetMainJITDylib, LLVMOrcLLJITLookup},
+        LLVMOrcCreateNewThreadSafeContext, LLVMOrcCreateNewThreadSafeModule,
+        LLVMOrcExecutorAddress, LLVMOrcThreadSafeContextGetContext,
+    },
 };
 use optimize::optimize;
 use parse::parse;
@@ -53,15 +56,19 @@ fn rcpl() {
                             repl_state.context.llvm_module,
                             repl_state.context.llvm_jit_context,
                         );
-                        LLVMOrcLLJITAddLLVMIRModule(repl_state.context.llvm_jit, dylib, tsm);
+                        let err =
+                            LLVMOrcLLJITAddLLVMIRModule(repl_state.context.llvm_jit, dylib, tsm);
+                        let err_msg = LLVMGetErrorMessage(err);
                         let mut executor_addr: LLVMOrcExecutorAddress = 0;
                         let executor_addr_ptr = &mut executor_addr as *mut _;
-                        let main_name = std::ffi::CString::new("main").unwrap();
+                        let main_name = std::ffi::CString::new("main2").unwrap();
                         LLVMOrcLLJITLookup(
                             repl_state.context.llvm_jit,
                             executor_addr_ptr,
                             main_name.as_ptr(),
-                        )
+                        );
+                        let func: fn() -> f64 = std::mem::transmute(executor_addr);
+                        println!("{}", func());
                     };
                 }
             } else {

@@ -122,7 +122,7 @@ parser! {
     fn expr_nonlrec[Input]()(Input) -> Expr
     where [Input: Stream<Token = Token>]
     {
-        choice!(atomic_expr(), if_then_else_expr(), parens_expr(), funcall_expr())
+        choice!(if_then_else_expr(), parens_expr(), funcall_expr(), atomic_expr())
     }
 }
 

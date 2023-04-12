@@ -1,11 +1,11 @@
 use combine::easy::Errors;
 use combine::stream::StreamErrorFor;
 use combine::{
-    attempt, choice, many1, parser, position, satisfy, satisfy_map, sep_by, value, EasyParser,
-    ParseError, Parser, Stream, StreamOnce,
+    attempt, choice, many, many1, parser, position, satisfy, satisfy_map, sep_by, value,
+    EasyParser, ParseError, Parser, Stream, StreamOnce,
 };
 
-use crate::expr::{Atom, BinaryOp, DecoratedExpr, Expr, TypeModifier, UnaryOp, ValueType};
+use crate::expr::{Atom, BinaryOp, DecoratedExpr, Expr, Type, TypeModifier, UnaryOp, ValueType};
 use crate::statement::{FunctionDecl, FunctionDefn, Program, Statement};
 use crate::token::Token;
 
@@ -243,11 +243,12 @@ where
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
     satisfy_map(match_type_modifier).then(|modifier| match modifier {
-        TypeModifier::Pointer => value(TypeModifier::Pointer),
+        TypeModifier::Pointer => value(TypeModifier::Pointer).right(),
         TypeModifier::Array(_) => eq_token(Token::LParen)
             .with(satisfy_map(match_usize_literal))
             .skip(eq_token(Token::RParen))
-            .map(TypeModifier::Array),
+            .map(TypeModifier::Array)
+            .left(),
     })
 }
 
@@ -256,6 +257,12 @@ where
     Input: Stream<Token = Token>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
+    many(type_modifier())
+        .and(value_type())
+        .map(|(mods, val)| Type {
+            modifiers: mods,
+            value_type: val,
+        })
 }
 
 fn function_decl<Input>() -> impl Parser<Input, Output = FunctionDecl>
@@ -264,17 +271,28 @@ where
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
     attempt(identifier().skip(eq_token(Token::LParen)))
-        .and(sep_by::<Vec<String>, _, _, _>(
+        .and(sep_by::<Vec<(String, Type)>, _, _, _>(
             identifier()
                 .skip(eq_token(Token::Colon))
                 .and(manifest_type()),
             eq_token(Token::Comma),
         ))
         .skip(eq_token(Token::RParen))
-        .map(|(name, args)| FunctionDecl {
-            name,
-            type_: args.len(),
-            args,
+        .skip(eq_token(Token::Comma))
+        .and(manifest_type())
+        .map(|((name, args), ret_ty)| {
+            let fun_ty = ValueType::Function(
+                Box::new(ret_ty),
+                args.clone().into_iter().map(|(arg, ty)| ty).collect(),
+            );
+            FunctionDecl {
+                name,
+                type_: Type {
+                    modifiers: Vec::new(),
+                    value_type: fun_ty,
+                },
+                args: args.into_iter().map(|(arg, ty)| arg).collect(),
+            }
         })
 }
 

@@ -1,27 +1,23 @@
 extern crate llvm_sys;
 
-use combine::error;
 use llvm_sys::{
     analysis::LLVMVerifyFunction,
     core::{
         LLVMAddFunction, LLVMAppendBasicBlockInContext, LLVMBuildCall2, LLVMBuildFAdd,
         LLVMBuildFCmp, LLVMBuildFDiv, LLVMBuildFMul, LLVMBuildFSub, LLVMBuildRet, LLVMBuildUIToFP,
         LLVMConstReal, LLVMContextCreate, LLVMContextDispose, LLVMCountBasicBlocks,
-        LLVMCountParams, LLVMCreateBuilderInContext, LLVMCreateFunctionPassManager,
-        LLVMCreateFunctionPassManagerForModule, LLVMCreatePassManager, LLVMDeleteFunction,
-        LLVMDisposeBuilder, LLVMDisposeModule, LLVMDisposePassManager, LLVMDoubleTypeInContext,
-        LLVMFunctionType, LLVMGetGlobalPassRegistry, LLVMGetNamedFunction, LLVMGetParam,
-        LLVMGetValueName2, LLVMGlobalGetValueType, LLVMModuleCreateWithNameInContext,
-        LLVMPositionBuilderAtEnd, LLVMPrintModuleToString, LLVMPrintValueToString, LLVMSetLinkage,
-        LLVMSetValueName2, LLVMShutdown, LLVMTypeOf,
+        LLVMCountParams, LLVMCreateBuilderInContext, LLVMDeleteFunction, LLVMDisposeBuilder,
+        LLVMDisposeModule, LLVMDoubleTypeInContext, LLVMFunctionType, LLVMGetGlobalPassRegistry,
+        LLVMGetNamedFunction, LLVMGetParam, LLVMGetValueName2, LLVMGlobalGetValueType,
+        LLVMModuleCreateWithNameInContext, LLVMPositionBuilderAtEnd, LLVMPrintModuleToString,
+        LLVMSetLinkage, LLVMSetValueName2, LLVMShutdown,
     },
     error::LLVMGetErrorMessage,
     execution_engine::LLVMLinkInMCJIT,
     initialization::{LLVMInitializeCodeGen, LLVMInitializeCore},
     orc2::{
         lljit::{
-            LLVMOrcCreateLLJIT, LLVMOrcCreateLLJITBuilder, LLVMOrcDisposeLLJIT,
-            LLVMOrcLLJITAddLLVMIRModule, LLVMOrcLLJITRef,
+            LLVMOrcCreateLLJIT, LLVMOrcCreateLLJITBuilder, LLVMOrcDisposeLLJIT, LLVMOrcLLJITRef,
         },
         LLVMOrcCreateNewThreadSafeContext, LLVMOrcThreadSafeContextRef,
     },
@@ -32,21 +28,20 @@ use llvm_sys::{
     },
     target_machine::{
         LLVMCreateTargetMachine, LLVMDisposeTargetMachine, LLVMGetDefaultTargetTriple,
-        LLVMGetHostCPUFeatures, LLVMGetHostCPUName, LLVMGetTargetDescription,
-        LLVMGetTargetFromTriple, LLVMOpaqueTargetMachine, LLVMTarget, LLVMTargetMachineRef,
+        LLVMGetHostCPUFeatures, LLVMGetHostCPUName, LLVMGetTargetFromTriple, LLVMTargetMachineRef,
         LLVMTargetRef,
     },
     transforms::pass_builder::{
         LLVMCreatePassBuilderOptions, LLVMDisposePassBuilderOptions, LLVMPassBuilderOptionsRef,
     },
-    LLVMBuilder, LLVMContext, LLVMModule, LLVMPassManager, LLVMValue,
+    LLVMModule, LLVMValue,
 };
 use std::collections::hash_map::HashMap;
 use std::ffi::CString;
 use std::ptr::null_mut;
 
 use crate::{
-    expr::{Atom, BinaryOp, Expr},
+    expr::{Atom, BinaryOp, DecoratedExpr, Expr},
     statement::{FunctionDecl, FunctionDefn, Program, Statement},
 };
 
@@ -175,11 +170,11 @@ fn compile_atomic_expr(ctx: &CompilationContext, atom: &Atom) -> Option<*mut LLV
     }
 }
 
-fn compile_binary_expr(
+fn compile_binary_expr<T>(
     ctx: &CompilationContext,
     op: &BinaryOp,
-    lhs: &Box<Expr>,
-    rhs: &Box<Expr>,
+    lhs: &Box<DecoratedExpr<T>>,
+    rhs: &Box<DecoratedExpr<T>>,
 ) -> Option<*mut LLVMValue> {
     let name = CString::new(match op {
         BinaryOp::Add => "faddtmp",
@@ -248,16 +243,18 @@ fn compile_binary_expr(
                     LLVMDoubleTypeInContext(ctx.llvm_context),
                     to_bool_name.as_ptr(),
                 )),
+                // FIXME!!
+                BinaryOp::Ptr => None,
             },
             _ => None,
         }
     }
 }
 
-fn compile_funcall_expr(
+fn compile_funcall_expr<T>(
     ctx: &CompilationContext,
     id: &String,
-    exprs: &Vec<Expr>,
+    exprs: &Vec<DecoratedExpr<T>>,
 ) -> Option<*mut LLVMValue> {
     let func_name = CString::new(id.as_str()).unwrap();
     let calltmp = CString::new("calltmp").unwrap();
@@ -285,7 +282,10 @@ fn compile_funcall_expr(
     }
 }
 
-pub fn compile_expr(ctx: &CompilationContext, expr: &Expr) -> Option<*mut LLVMValue> {
+pub fn compile_expr<T>(
+    ctx: &CompilationContext,
+    expr: &DecoratedExpr<T>,
+) -> Option<*mut LLVMValue> {
     match expr {
         Expr::AtomicExpr(atom) => dbg!(compile_atomic_expr(ctx, atom)),
         Expr::BinaryExpr(op, lhs, rhs) => dbg!(compile_binary_expr(ctx, op, lhs, rhs)),
@@ -323,9 +323,9 @@ fn compile_function_decl_statement(
     }
 }
 
-fn compile_function_defn_statement(
+fn compile_function_defn_statement<T>(
     ctx: &mut CompilationContext,
-    defn: &FunctionDefn,
+    defn: &FunctionDefn<T>,
 ) -> Option<*mut LLVMValue> {
     dbg!("compiling defn");
     let func_name = CString::new(defn.declaration.name.as_str()).unwrap();
@@ -376,9 +376,9 @@ fn compile_function_defn_statement(
     }
 }
 
-fn compile_expr_statement(
+fn compile_expr_statement<T>(
     ctx: &mut CompilationContext,
-    expr: &Expr,
+    expr: &DecoratedExpr<T>,
     line_number: &Option<usize>,
 ) -> Option<*mut LLVMValue> {
     compile_function_defn_statement(
@@ -403,9 +403,9 @@ fn anonymous_decl(line_number: &Option<usize>) -> FunctionDecl {
     }
 }
 
-pub fn compile_statement(
+pub fn compile_statement<T>(
     ctx: &mut CompilationContext,
-    stmt: &Statement,
+    stmt: &Statement<T>,
     line_number: &Option<usize>,
 ) -> Option<*mut LLVMValue> {
     match stmt {
@@ -423,9 +423,9 @@ pub fn print_ir(module: &*mut LLVMModule) {
     }
 }
 
-pub fn compile(
+pub fn compile<T>(
     ctx: &mut CompilationContext,
-    prog: &Program,
+    prog: &Program<T>,
     line_number: &Option<usize>,
 ) -> Option<Vec<*mut LLVMValue>> {
     let mut v = Vec::new();

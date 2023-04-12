@@ -1,25 +1,23 @@
-use crate::expr::Expr;
-
-pub type FunctionType = usize;
+use crate::expr::{DecoratedExpr, Expr, Identifier, Type};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionDecl {
-    pub name: String,
-    pub type_: FunctionType,
-    pub args: Vec<String>,
+    pub name: Identifier,
+    pub type_: Type,
+    pub args: Vec<Identifier>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct FunctionDefn {
+pub struct FunctionDefn<T> {
     pub declaration: FunctionDecl,
-    pub body: Expr,
+    pub body: DecoratedExpr<T>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Statement {
-    ExprStatement(Expr),
+pub enum Statement<T> {
+    ExprStatement(DecoratedExpr<T>),
     FunctionDeclStatement(FunctionDecl),
-    FunctionDefnStatement(FunctionDefn),
+    FunctionDefnStatement(FunctionDefn<T>),
 }
 
-pub type Program = Vec<Statement>;
+pub type Program<T> = Vec<Statement<T>>;

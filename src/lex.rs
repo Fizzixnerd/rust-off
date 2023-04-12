@@ -1,6 +1,6 @@
 use crate::token::{Token, TokenStream};
 use combine::easy::Errors;
-use combine::parser::char::{alpha_num, digit, letter, space, spaces, string};
+use combine::parser::char::{alpha_num, digit, letter, space, spaces, string, upper};
 use combine::{
     attempt, choice, many, many1, one_of, EasyParser, ParseError, Parser, Stream, StreamOnce,
 };
@@ -93,6 +93,16 @@ where
     string(",").map(|_| Token::Comma)
 }
 
+fn type_identifier<Input>() -> impl Parser<Input, Output = Token>
+where
+    Input: Stream<Token = char>,
+    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+{
+    upper()
+        .and(many(alpha_num()))
+        .map(|(c, rest): (char, String)| Token::TypeIdentifier(c.to_string() + &rest))
+}
+
 fn identifier<Input>() -> impl Parser<Input, Output = Token>
 where
     Input: Stream<Token = char>,
@@ -111,20 +121,30 @@ where
     many1(one_of("!<>+-*/^=".chars())).map(Token::Operator)
 }
 
-fn floating<Input>() -> impl Parser<Input, Output = Token>
+fn usize_lit<Input>() -> impl Parser<Input, Output = Token>
 where
     Input: Stream<Token = char>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    many1(digit()).and(string(".")).and(many(digit())).map(
-        |((before_digits, decimal_place), after_digits): ((String, &str), String)| {
-            Token::Floating(
-                (before_digits + &decimal_place + &after_digits)
-                    .parse::<f64>()
-                    .unwrap(),
-            )
-        },
-    )
+    many1(digit()).map(|xs: String| Token::USize(xs.parse::<usize>().unwrap()))
+}
+
+fn floating_lit<Input>() -> impl Parser<Input, Output = Token>
+where
+    Input: Stream<Token = char>,
+    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+{
+    attempt(many1(digit()).and(string(".")))
+        .and(many(digit()))
+        .map(
+            |((before_digits, decimal_place), after_digits): ((String, &str), String)| {
+                Token::Floating(
+                    (before_digits + &decimal_place + &after_digits)
+                        .parse::<f64>()
+                        .unwrap(),
+                )
+            },
+        )
 }
 
 pub fn token<Input>() -> impl Parser<Input, Output = Token>
@@ -145,8 +165,10 @@ where
         colon(),
         comma(),
         operator(),
+        type_identifier(),
         identifier(),
-        floating()
+        floating_lit(),
+        usize_lit()
     )
 }
 

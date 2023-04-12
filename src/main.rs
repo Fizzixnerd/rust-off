@@ -8,15 +8,10 @@ mod statement;
 mod token;
 use compile::{compile, deinit, init, print_ir, CompilationContext};
 use lex::lex;
-use llvm_sys::{
-    error::LLVMGetErrorMessage,
-    orc2::{
-        lljit::{LLVMOrcLLJITAddLLVMIRModule, LLVMOrcLLJITGetMainJITDylib, LLVMOrcLLJITLookup},
-        LLVMOrcCreateNewThreadSafeContext, LLVMOrcCreateNewThreadSafeModule,
-        LLVMOrcExecutorAddress, LLVMOrcThreadSafeContextGetContext,
-    },
+use llvm_sys::orc2::{
+    lljit::{LLVMOrcLLJITAddLLVMIRModule, LLVMOrcLLJITGetMainJITDylib, LLVMOrcLLJITLookup},
+    LLVMOrcCreateNewThreadSafeModule, LLVMOrcExecutorAddress,
 };
-use optimize::optimize;
 use parse::parse;
 use std::io;
 
@@ -25,7 +20,7 @@ struct ReplState {
     pub context: CompilationContext,
 }
 
-fn rcpl() {
+fn repl() {
     if let Some(ctx) = init() {
         let lines = Vec::new();
         let mut repl_state = ReplState {
@@ -56,9 +51,7 @@ fn rcpl() {
                             repl_state.context.llvm_module,
                             repl_state.context.llvm_jit_context,
                         );
-                        let err =
-                            LLVMOrcLLJITAddLLVMIRModule(repl_state.context.llvm_jit, dylib, tsm);
-                        let err_msg = LLVMGetErrorMessage(err);
+                        LLVMOrcLLJITAddLLVMIRModule(repl_state.context.llvm_jit, dylib, tsm);
                         let mut executor_addr: LLVMOrcExecutorAddress = 0;
                         let executor_addr_ptr = &mut executor_addr as *mut _;
                         let main_name = std::ffi::CString::new("main2").unwrap();
@@ -83,7 +76,7 @@ fn rcpl() {
 }
 
 fn main() {
-    rcpl();
+    repl();
 }
 
 fn main_test() {

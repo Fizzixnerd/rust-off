@@ -13,7 +13,9 @@ pub enum Token {
     Comma,
     Operator(String),
     Identifier(String),
+    TypeIdentifier(String),
     Floating(f64),
+    USize(usize),
 }
 
 pub type TokenStream = Vec<Token>;
